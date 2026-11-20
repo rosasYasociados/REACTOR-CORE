@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NUCLEAR CORE SIMULATOR</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-theme="cyan" data-alarm="off">
+
+<header class="top">
+  <div class="logo"><svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><circle cx="16" cy="16" r="4" fill="currentColor"/><circle cx="16" cy="16" r="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="1"/></svg><span>NUCLEAR CORE <small>SIMULATOR</small></span></div>
+  <div class="hud">
+    <span class="chip"><i class="lamp on"></i><span id="onlineTxt">SIMULATION ONLINE</span></span>
+    <span class="chip mono" id="clock">00:00:00</span>
+    <span class="chip">LOCAL MODE</span>
+    <button class="btn icon" id="btnSettings" aria-expanded="false" aria-controls="settings" title="Configuración">⚙</button>
+  </div>
+</header>
+
+<section id="settings" class="panel settings" hidden>
+  <h2>Configuración</h2>
+  <div class="row">
+    <button class="btn" id="btnSound" aria-pressed="false">SONIDO: OFF</button>
+    <div class="themes" role="group" aria-label="Modo visual">
+      <button class="btn sm active" data-theme="cyan">CIAN</button>
+      <button class="btn sm" data-theme="blue">AZUL</button>
+      <button class="btn sm" data-theme="violet">VIOLETA</button>
+    </div>
+  </div>
+</section>
+
+<main class="grid">
+  <section class="panel p-reactor">
+    <h2>Reactor core</h2>
+    <div class="core-wrap"><canvas id="core" aria-label="Cámara del núcleo simulado"></canvas><div class="core-tag mono" id="coreTag">CORE OFFLINE</div></div>
+  </section>
+
+  <section class="panel p-status">
+    <h2>Estado</h2>
+    <dl class="stats">
+      <div><dt>Core status</dt><dd id="vStatus" class="mono">OFFLINE</dd></div>
+      <div><dt>Simulation temperature</dt><dd id="vTemp" class="mono">0.0 ºS</dd></div>
+      <div><dt>Energy output</dt><dd id="vEnergy" class="mono">0.0 MSU</dd></div>
+      <div><dt>Particle count</dt><dd id="vParticles" class="mono">0</dd></div>
+      <div><dt>System stability</dt><dd id="vStability" class="mono">100.0 %</dd></div>
+      <div><dt>Simulation runtime</dt><dd id="vRuntime" class="mono">00:00:00</dd></div>
+    </dl>
+    <div class="alarm"><i class="lamp big" id="alarmLamp"></i><div><b id="alarmText">OFFLINE</b><p id="alarmDesc">Simulación detenida.</p></div></div>
+  </section>
+
+  <section class="panel p-control">
+    <h2>Control</h2>
+    <div class="btns">
+      <button class="btn pri" id="btnStart">START SIMULATION</button>
+      <button class="btn" id="btnPause" disabled>PAUSE SIMULATION</button>
+      <button class="btn" id="btnReset">RESET SIMULATION</button>
+      <button class="btn" id="btnDemo" aria-pressed="false">MODO DEMO: OFF</button>
+    </div>
+    <label class="rng">Intensidad visual <output id="oInt">100%</output><input type="range" id="rInt" min="30" max="150" value="100"></label>
+    <label class="rng">Velocidad de animación <output id="oSpd">1.0x</output><input type="range" id="rSpd" min="50" max="300" value="100"></label>
+  </section>
+
+  <section class="panel p-instr">
+    <h2>Instrumentación</h2>
+    <div class="gauges"><div id="gTemp"></div><div id="gEnergy"></div><div id="gStab"></div></div>
+    <canvas id="chart" class="chart" aria-label="Gráfico de evolución"></canvas>
+    <div class="legend mono"><span class="k1">TEMP</span><span class="k2">ENERGY</span><span class="k3">STABILITY</span></div>
+    <div class="bars">
+      <label>Integridad de campo<span class="bar"><i id="bField"></i></span></label>
+      <label>Carga energética<span class="bar"><i id="bLoad"></i></span></label>
+      <label>Enlace de datos<span class="bar"><i id="bLink"></i></span></label>
+    </div>
+    <div class="lamps mono">
+      <span><i class="lamp" id="l0"></i>COOL</span><span><i class="lamp" id="l1"></i>FLUX</span><span><i class="lamp" id="l2"></i>GRID</span>
+      <span><i class="lamp" id="l3"></i>SHLD</span><span><i class="lamp" id="l4"></i>SYNC</span><span><i class="lamp" id="l5"></i>DATA</span>
+    </div>
+  </section>
+
+  <section class="panel p-events">
+    <h2>Registro de eventos</h2>
+    <ul id="log" class="log mono" aria-live="polite"></ul>
+  </section>
+</main>
+
+<script src="js/audio.js"></script>
+<script src="js/alarms.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/reactor.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
