@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NUCLEAR CORE SIMULATOR</title>
+<style>
+/* NUCLEAR CORE SIMULATOR — estilos. Todo local, sin recursos externos. */
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#030812 radial-gradient(ellipse at 50% -10%,#0b2142,#030812 65%) no-repeat;min-height:100%}
+body{
+  --h:190;--c:hsl(var(--h) 100% 55%);--c2:hsl(var(--h) 100% 55% / .38);--c3:hsl(var(--h) 100% 55% / .1);
+  --bg:#030812;--pan:rgba(6,18,36,.86);--ok:#3dffb0;--warn:#ffc83d;--crit:#ff4560;--off:#5f7392;--ac:var(--off);
+  --txt:#d3eaff;--mut:#7f9bbd;
+  background:transparent;color:var(--txt);
+  font:14px/1.45 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif;min-height:100vh;overflow-x:hidden;-webkit-text-size-adjust:100%;
+}
+body[data-theme=blue]{--h:215} body[data-theme=violet]{--h:265}
+body[data-alarm=ok]{--ac:var(--ok)} body[data-alarm=warn]{--ac:var(--warn)} body[data-alarm=crit]{--ac:var(--crit)} body[data-alarm=off]{--ac:var(--off)}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;background:repeating-linear-gradient(0deg,rgba(255,255,255,.014) 0 1px,transparent 1px 3px)}
+body[data-alarm=crit]::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:49;box-shadow:inset 0 0 90px rgba(255,69,96,.35);animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+.mono{font-family:ui-monospace,"SF Mono",Consolas,"Courier New",monospace;letter-spacing:.04em;font-variant-numeric:tabular-nums}
+
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid var(--c2);background:rgba(3,10,22,.7)}
+.logo{display:flex;align-items:center;gap:10px;color:var(--c);font-weight:700;letter-spacing:.16em;text-shadow:0 0 14px var(--c2)}
+.logo small{font-weight:400;color:var(--mut);letter-spacing:.3em;font-size:.7em}
+.logo svg{animation:spin 14s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.hud{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:5px 10px;border:1px solid var(--c2);background:var(--c3);font-size:.78rem;letter-spacing:.08em}
+
+.lamp{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--off);box-shadow:0 0 0 1px rgba(255,255,255,.15) inset;vertical-align:middle;margin-right:6px;transition:.3s}
+.lamp.on,.lamp.ok{background:var(--ok);box-shadow:0 0 9px var(--ok)}
+.lamp.warn{background:var(--warn);box-shadow:0 0 9px var(--warn)}
+.lamp.crit{background:var(--crit);box-shadow:0 0 11px var(--crit);animation:pulse .6s infinite}
+.lamp.big{width:22px;height:22px;margin:0;flex:none;background:var(--ac);box-shadow:0 0 18px var(--ac)}
+.chip .lamp{margin:0}
+
+.btn{font:inherit;font-size:.8rem;letter-spacing:.1em;color:var(--txt);background:var(--c3);border:1px solid var(--c2);padding:11px 14px;min-height:44px;cursor:pointer;transition:.2s;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.btn:hover:not(:disabled){background:var(--c2);box-shadow:0 0 16px var(--c2)}
+.btn:focus-visible,input:focus-visible{outline:2px solid var(--c);outline-offset:2px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.pri{background:var(--c);color:#021018;font-weight:700;border-color:var(--c)}
+.btn[aria-pressed=true],.btn.active{background:var(--c2);border-color:var(--c);box-shadow:0 0 14px var(--c2)}
+.btn.icon{min-width:44px;padding:0;font-size:1.2rem}.btn.sm{padding:6px 12px;min-height:36px}
+
+.panel{position:relative;background:var(--pan);border:1px solid var(--c2);padding:16px;box-shadow:inset 0 0 40px var(--c3);clip-path:polygon(16px 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%,0 16px)}
+.panel h2{font-size:.78rem;letter-spacing:.24em;text-transform:uppercase;color:var(--c);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.panel h2::before{content:"";width:18px;height:2px;background:var(--c);box-shadow:0 0 8px var(--c)}
+.settings{margin:12px 18px 0}.settings[hidden]{display:none}
+.settings .row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}.themes{display:flex;gap:6px}
+
+.grid{max-width:1700px;margin:0 auto;display:grid;gap:14px;padding:14px 18px 24px;grid-template-columns:320px minmax(0,1fr) 360px;
+  grid-template-areas:"status reactor instr" "control reactor instr" "events events events"}
+.p-reactor{grid-area:reactor;display:flex;flex-direction:column}.p-status{grid-area:status}.p-control{grid-area:control}.p-instr{grid-area:instr;display:flex;flex-direction:column}.p-events{grid-area:events}
+.core-wrap{position:relative;flex:1;min-height:520px;border:1px solid var(--c3);background:radial-gradient(circle at 50% 50%,hsl(var(--h) 80% 14% / .9),#02060e 72%)}
+#core{position:absolute;inset:0;width:100%;height:100%;display:block}
+.core-tag{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);font-size:.75rem;color:var(--ac);text-shadow:0 0 10px var(--ac);white-space:nowrap}
+
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.card{position:relative;padding:10px 12px;border:1px solid var(--c2);background:linear-gradient(160deg,var(--c3),rgba(2,8,20,.6));overflow:hidden}
+.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c);box-shadow:0 0 10px var(--c)}
+.card span{display:block;color:var(--mut);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase}
+.card b{display:block;margin-top:2px;color:var(--c);font-size:1.3rem;font-weight:600;text-shadow:0 0 12px var(--c2);white-space:nowrap}
+.card.c-wide{grid-column:1/-1}.card.c-wide b{font-size:1.5rem}
+.alarm{display:flex;gap:12px;align-items:center;margin-top:14px;padding:10px;border:1px solid var(--ac);background:rgba(255,255,255,.03)}
+.alarm b{color:var(--ac);letter-spacing:.18em}.alarm p{font-size:.78rem;color:var(--mut)}
+
+.btns{display:grid;gap:8px;grid-template-columns:1fr 1fr}.btns .pri,.btns #btnDemo{grid-column:1/-1}
+.rng{display:block;margin-top:14px;font-size:.78rem;color:var(--mut)}.rng output{float:right;color:var(--c)}
+input[type=range]{width:100%;margin-top:8px;accent-color:var(--c);height:28px}
+
+.gauges{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.gauge svg{width:100%;height:auto;display:block}
+.g-track{fill:none;stroke:var(--c3);stroke-width:7;stroke-linecap:round}
+.g-val{fill:none;stroke:var(--c);stroke-width:7;stroke-linecap:round;filter:drop-shadow(0 0 4px var(--c));transition:stroke-dasharray .4s}
+.g-num{fill:var(--txt);font:700 17px Consolas,monospace;text-anchor:middle}.g-lab{fill:var(--mut);font:8px "Segoe UI",sans-serif;text-anchor:middle;letter-spacing:.1em}
+.chart{width:100%;height:150px;flex:1 1 150px;min-height:150px;display:block;margin-top:10px;border:1px solid var(--c3);background:rgba(0,0,0,.25)}
+.legend{display:flex;gap:14px;font-size:.68rem;margin:6px 0 10px;flex-wrap:wrap}
+.legend span::before{content:"";display:inline-block;width:14px;height:3px;margin-right:5px;vertical-align:middle}
+.k1::before{background:var(--c)}.k2::before{background:var(--ok)}.k3::before{background:var(--warn)}
+.bars{display:grid;gap:8px}.bars label{font-size:.74rem;color:var(--mut);display:grid;gap:3px}
+.bar{display:block;height:7px;background:var(--c3);border:1px solid var(--c2)}.bar i{display:block;height:100%;width:0;background:var(--c);box-shadow:0 0 8px var(--c);transition:width .5s}
+.lamps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px;font-size:.72rem}
+
+.log{list-style:none;max-height:210px;overflow:auto;font-size:.78rem;scrollbar-width:thin;scrollbar-color:var(--c2) transparent}
+.log li{padding:4px 0;border-bottom:1px solid var(--c3);display:flex;gap:10px;animation:in .4s}
+@keyframes in{from{opacity:0;transform:translateX(-8px)}}
+.log time{color:var(--mut);flex:none}.log .ok{color:var(--ok)}.log .warn{color:var(--warn)}.log .crit{color:var(--crit)}.log .info{color:var(--txt)}
+
+@media (max-width:1100px){
+  .grid{grid-template-columns:1fr 1fr;grid-template-areas:"reactor reactor" "status instr" "control events"}
+  .core-wrap{min-height:480px}
+}
+@media (max-width:700px){
+  .grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"reactor" "status" "control" "instr" "events";padding:10px}
+  .core-wrap{min-height:0;aspect-ratio:1}
+  .top{padding:10px}.logo{font-size:.9rem}
+  .btns{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+</style>
+</head>
+<body data-theme="cyan" data-alarm="off">
+
+<header class="top">
+  <div class="logo"><svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><circle cx="16" cy="16" r="4" fill="currentColor"/><circle cx="16" cy="16" r="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="1"/></svg><span>NUCLEAR CORE <small>SIMULATOR</small></span></div>
+  <div class="hud">
+    <span class="chip"><i class="lamp on"></i><span id="onlineTxt">SIMULATION ONLINE</span></span>
+    <span class="chip mono" id="clock">00:00:00</span>
+    <span class="chip">LOCAL MODE</span>
+    <button class="btn icon" id="btnSettings" aria-expanded="false" aria-controls="settings" title="Configuración">⚙</button>
+  </div>
+</header>
+
+<section id="settings" class="panel settings" hidden>
+  <h2>Configuración</h2>
+  <div class="row">
+    <button class="btn" id="btnSound" aria-pressed="false">SONIDO: OFF</button>
+    <div class="themes" role="group" aria-label="Modo visual">
+      <button class="btn sm active" data-theme="cyan">CIAN</button>
+      <button class="btn sm" data-theme="blue">AZUL</button>
+      <button class="btn sm" data-theme="violet">VIOLETA</button>
+    </div>
+  </div>
+</section>
+
+<main class="grid">
+  <section class="panel p-reactor">
+    <h2>Reactor core</h2>
+    <div class="core-wrap"><canvas id="core" aria-label="Cámara del núcleo simulado"></canvas><div class="core-tag mono" id="coreTag">CORE OFFLINE</div></div>
+  </section>
+
+  <section class="panel p-status">
+    <h2>Estado</h2>
+    <div class="cards">
+      <div class="card c-wide"><span>Core status</span><b id="vStatus" class="mono">OFFLINE</b></div>
+      <div class="card"><span>Simulation temperature</span><b id="vTemp" class="mono">0.0 ºS</b></div>
+      <div class="card"><span>Energy output</span><b id="vEnergy" class="mono">0.0 MSU</b></div>
+      <div class="card"><span>Particle count</span><b id="vParticles" class="mono">0</b></div>
+      <div class="card"><span>System stability</span><b id="vStability" class="mono">100.0 %</b></div>
+      <div class="card c-wide"><span>Simulation runtime</span><b id="vRuntime" class="mono">00:00:00</b></div>
+    </div>
+    <div class="alarm"><i class="lamp big" id="alarmLamp"></i><div><b id="alarmText">OFFLINE</b><p id="alarmDesc">Simulación detenida.</p></div></div>
+  </section>
+
+  <section class="panel p-control">
+    <h2>Control</h2>
+    <div class="btns">
+      <button class="btn pri" id="btnStart">START SIMULATION</button>
+      <button class="btn" id="btnPause" disabled>PAUSE SIMULATION</button>
+      <button class="btn" id="btnReset">RESET SIMULATION</button>
+      <button class="btn" id="btnDemo" aria-pressed="false">MODO DEMO: OFF</button>
+    </div>
+    <label class="rng">Intensidad visual <output id="oInt">100%</output><input type="range" id="rInt" min="30" max="150" value="100"></label>
+    <label class="rng">Velocidad de animación <output id="oSpd">1.0x</output><input type="range" id="rSpd" min="50" max="300" value="100"></label>
+  </section>
+
+  <section class="panel p-instr">
+    <h2>Instrumentación</h2>
+    <div class="gauges"><div id="gTemp"></div><div id="gEnergy"></div><div id="gStab"></div></div>
+    <canvas id="chart" class="chart" aria-label="Gráfico de evolución"></canvas>
+    <div class="legend mono"><span class="k1">TEMP</span><span class="k2">ENERGY</span><span class="k3">STABILITY</span></div>
+    <div class="bars">
+      <label>Integridad de campo<span class="bar"><i id="bField"></i></span></label>
+      <label>Carga energética<span class="bar"><i id="bLoad"></i></span></label>
+      <label>Enlace de datos<span class="bar"><i id="bLink"></i></span></label>
+    </div>
+    <div class="lamps mono">
+      <span><i class="lamp" id="l0"></i>COOL</span><span><i class="lamp" id="l1"></i>FLUX</span><span><i class="lamp" id="l2"></i>GRID</span>
+      <span><i class="lamp" id="l3"></i>SHLD</span><span><i class="lamp" id="l4"></i>SYNC</span><span><i class="lamp" id="l5"></i>DATA</span>
+    </div>
+  </section>
+
+  <section class="panel p-events">
+    <h2>Registro de eventos</h2>
+    <ul id="log" class="log mono" aria-live="polite"></ul>
+  </section>
+</main>
+
+<script>
+/* Efectos sonoros sintetizados (Web Audio API). Desactivado por defecto. */
+(function (N) {
+  'use strict';
+  var ctx = null, on = false;
+
+  // Un tono: frecuencia inicial/final, duración, tipo de onda, volumen, retardo
+  function tone(f0, f1, dur, type, vol, delay) {
+    var t = ctx.currentTime + (delay || 0);
+    var o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+
+  var SOUNDS = {
+    start:  function () { tone(180, 720, 0.5, 'sawtooth', 0.08); tone(360, 1080, 0.5, 'sine', 0.06, 0.1); },
+    stop:   function () { tone(720, 140, 0.55, 'sawtooth', 0.08); },
+    notify: function () { tone(880, 880, 0.12, 'sine', 0.1); tone(1320, 1320, 0.18, 'sine', 0.1, 0.14); },
+    alarm:  function () { for (var i = 0; i < 3; i++) tone(520, 380, 0.22, 'square', 0.07, i * 0.3); }
+  };
+
+  N.Audio = {
+    isOn: function () { return on; },
+    play: function (name) {
+      if (!on || !ctx || !SOUNDS[name]) return;
+      try { SOUNDS[name](); } catch (e) { /* audio no crítico */ }
+    },
+    // Activa/desactiva; debe llamarse desde un gesto del usuario
+    toggle: function () {
+      if (!on) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return false;
+        if (!ctx) ctx = new AC();
+        if (ctx.state === 'suspended') ctx.resume();
+        on = true; this.play('start');
+      } else {
+        this.play('stop'); on = false;
+      }
+      return on;
+    }
+  };
+})(window.NCS = window.NCS || {});
+
+</script>
+<script>
+/* Alarmas visuales de demostración (no representan umbrales reales). */
+(function (N) {
+  'use strict';
+  var STATES = {
+    NORMAL:   { cls: 'ok',   log: 'ok',   hue: null, desc: 'Todos los sistemas simulados estables.', sound: null },
+    WARNING:  { cls: 'warn', log: 'warn', hue: 45,   desc: 'Fluctuación simulada detectada. Solo demostración.', sound: 'notify' },
+    CRITICAL: { cls: 'crit', log: 'crit', hue: 0,    desc: 'Alerta visual máxima de demostración.', sound: 'alarm' },
+    OFFLINE:  { cls: 'off',  log: 'info', hue: 215,  desc: 'Simulación detenida.', sound: null }
+  };
+  var cur = null;
+
+  N.Alarms = {
+    STATES: STATES,
+    get current() { return cur; },
+    // Cambia el estado: actualiza indicador, texto, sonido y registro de eventos
+    set: function (key, reason) {
+      if (key === cur || !STATES[key]) return;
+      cur = key;
+      var s = STATES[key], d = document;
+      d.body.setAttribute('data-alarm', s.cls);
+      d.getElementById('alarmLamp').className = 'lamp big';
+      d.getElementById('alarmText').textContent = key;
+      d.getElementById('alarmDesc').textContent = s.desc;
+      if (N.Dashboard) N.Dashboard.log('Estado: ' + key + (reason ? ' — ' + reason : ''), s.log);
+      if (s.sound) N.Audio.play(s.sound);
+    }
+  };
+})(window.NCS = window.NCS || {});
+
+</script>
+<script>
+/* Instrumentos: medidores circulares (SVG) y gráfico de evolución (Canvas). */
+(function (N) {
+  'use strict';
+
+  // ---- Medidor circular de 270° ----
+  function pt(deg) {
+    var a = deg * Math.PI / 180;
+    return (50 + 40 * Math.cos(a)).toFixed(2) + ' ' + (50 + 40 * Math.sin(a)).toFixed(2);
+  }
+  var ARC = 'M ' + pt(135) + ' A 40 40 0 1 1 ' + pt(405);
+
+  function Gauge(host, label, unit, max) {
+    this.max = max; this.unit = unit;
+    host.className = 'gauge';
+    host.innerHTML = '<svg viewBox="0 0 100 100" role="img" aria-label="' + label + '">' +
+      '<path class="g-track" d="' + ARC + '"/>' +
+      '<path class="g-val" d="' + ARC + '" pathLength="100" stroke-dasharray="0 100"/>' +
+      '<text class="g-num" x="50" y="56">0</text>' +
+      '<text class="g-lab" x="50" y="76">' + label + '</text></svg>';
+    this.val = host.querySelector('.g-val');
+    this.num = host.querySelector('.g-num');
+  }
+  Gauge.prototype.set = function (v) {
+    var p = Math.max(0, Math.min(100, v / this.max * 100));
+    this.val.setAttribute('stroke-dasharray', p.toFixed(1) + ' 100');
+    this.num.textContent = Math.round(v) + this.unit;
+  };
+
+  // ---- Gráfico de líneas multiserie (valores 0..100) ----
+  function Line(canvas, colors, maxPoints) {
+    this.cv = canvas; this.ctx = canvas.getContext('2d');
+    this.colors = colors; this.max = maxPoints || 80;
+    this.data = colors.map(function () { return []; });
+    this.w = 0; this.h = 0;
+    var self = this;
+    if (window.ResizeObserver) new ResizeObserver(function () { self.resize(); }).observe(canvas);
+    else window.addEventListener('resize', function () { self.resize(); });
+    this.resize();
+  }
+  Line.prototype.resize = function () {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.w = this.cv.clientWidth; this.h = this.cv.clientHeight;
+    if (!this.w || !this.h) return;
+    this.cv.width = this.w * dpr; this.cv.height = this.h * dpr;
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.draw();
+  };
+  Line.prototype.push = function (vals) {
+    for (var i = 0; i < this.data.length; i++) {
+      this.data[i].push(vals[i]);
+      if (this.data[i].length > this.max) this.data[i].shift();
+    }
+    this.draw();
+  };
+  Line.prototype.clear = function () {
+    this.data = this.colors.map(function () { return []; });
+    this.draw();
+  };
+  Line.prototype.draw = function () {
+    var c = this.ctx, w = this.w, h = this.h;
+    if (!w || !h) return;
+    c.clearRect(0, 0, w, h);
+    c.strokeStyle = 'rgba(120,180,255,.12)'; c.lineWidth = 1;
+    for (var g = 1; g < 4; g++) { c.beginPath(); c.moveTo(0, h * g / 4); c.lineTo(w, h * g / 4); c.stroke(); }
+    for (var s = 0; s < this.data.length; s++) {
+      var d = this.data[s]; if (d.length < 2) continue;
+      var col = typeof this.colors[s] === 'function' ? this.colors[s]() : this.colors[s];
+      c.beginPath();
+      for (var i = 0; i < d.length; i++) {
+        var x = w - (d.length - 1 - i) * (w / (this.max - 1));
+        var y = h - 4 - (d[i] / 100) * (h - 8);
+        if (i) c.lineTo(x, y); else c.moveTo(x, y);
+      }
+      c.strokeStyle = col; c.lineWidth = 1.8; c.shadowColor = col; c.shadowBlur = 6; c.stroke(); c.shadowBlur = 0;
+    }
+  };
+
+  N.Charts = { Gauge: Gauge, Line: Line };
+})(window.NCS = window.NCS || {});
+
+</script>
+<script>
+/* Cámara del núcleo (Canvas 2D con profundidad simulada). Se anima siempre, independiente del resto. */
+(function (N) {
+  'use strict';
+  var TAU = Math.PI * 2;
+
+  function Reactor(canvas) {
+    this.cv = canvas; this.ctx = canvas.getContext('2d');
+    this.w = 0; this.h = 0;
+    this.hue = 190; this.hueTarget = 190;   // matiz actual / objetivo
+    this.energy = 0.06; this.energyTarget = 0.06;
+    this.intensity = 1; this.speed = 1;
+    this.waves = []; this.waveTimer = 0;
+    this.parts = [];
+    var self = this;
+    if (window.ResizeObserver) new ResizeObserver(function () { self.resize(); }).observe(canvas);
+    else window.addEventListener('resize', function () { self.resize(); });
+    this.resize();
+  }
+
+  Reactor.prototype.resize = function () {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.w = this.cv.clientWidth; this.h = this.cv.clientHeight;
+    if (!this.w || !this.h) return;
+    this.cv.width = this.w * dpr; this.cv.height = this.h * dpr;
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        var n = this.w < 500 ? 90 : 160;
+    if (this.parts.length !== n) {
+      this.parts = [];
+      for (var i = 0; i < n; i++) this.parts.push({
+        a: Math.random() * TAU, r: 0.18 + Math.random() * 0.75, y: Math.random() * 2 - 1,
+        v: (Math.random() < 0.5 ? -1 : 1) * (0.2 + Math.random() * 0.9), s: 0.8 + Math.random() * 1.8
+      });
+    }
+  };
+
+  Reactor.prototype.setState = function (energy, hue) { this.energyTarget = energy; this.hueTarget = hue; };
+
+  Reactor.prototype.frame = function (dt, t) {
+    var ctx = this.ctx, w = this.w, h = this.h;
+    if (!w || !h) return;
+    var k = Math.min(1, dt * 3);
+    this.energy += (this.energyTarget - this.energy) * k;
+    this.hue += (this.hueTarget - this.hue) * k;
+    var e = this.energy, I = this.intensity, sp = this.speed, hue = this.hue;
+    var cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.46;
+    var col = function (l, a) { return 'hsla(' + hue.toFixed(0) + ',100%,' + l + '%,' + a + ')'; };
+
+    // Lienzo transparente: el fondo lo aporta el CSS
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, w, h);
+
+    // Resplandor ambiental
+    var bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.15);
+    bg.addColorStop(0, col(50, Math.min(0.5, 0.16 + 0.3 * e) * I)); bg.addColorStop(1, col(40, 0));
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+
+    // Anillo exterior con marcas giratorias
+    ctx.lineWidth = 1.5; ctx.strokeStyle = col(55, 0.55 * I);
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = col(60, 0.7 * I); ctx.lineWidth = 2;
+    var rot = t * 0.15 * sp;
+    for (var i = 0; i < 72; i++) {
+      var a = rot + i * TAU / 72, l = i % 6 === 0 ? 14 : 6;
+      ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * (R - 4), cy + Math.sin(a) * (R - 4));
+      ctx.lineTo(cx + Math.cos(a) * (R - 4 - l), cy + Math.sin(a) * (R - 4 - l)); ctx.stroke();
+    }
+
+    // Anillos inclinados (profundidad 3D)
+    for (var j = 0; j < 4; j++) {
+      ctx.save(); ctx.translate(cx, cy); ctx.rotate(t * (0.12 + j * 0.07) * sp * (j % 2 ? -1 : 1) + j);
+      ctx.scale(1, 0.34 + j * 0.1);
+      ctx.setLineDash([10 + j * 6, 8]); ctx.lineWidth = 1.6;
+      ctx.strokeStyle = col(58, (0.35 + 0.25 * e) * I);
+      ctx.beginPath(); ctx.arc(0, 0, R * (0.55 + j * 0.13), 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.setLineDash([]);
+
+    // Ondas concéntricas expansivas
+    this.waveTimer -= dt;
+    if (this.waveTimer <= 0) { this.waves.push(0); this.waveTimer = 1.6 / (sp * (0.4 + e * 1.4)); }
+    for (var q = this.waves.length - 1; q >= 0; q--) {
+      this.waves[q] += dt * 0.32 * sp * (0.5 + e);
+      var p = this.waves[q];
+      if (p >= 1) { this.waves.splice(q, 1); continue; }
+      ctx.strokeStyle = col(65, (1 - p) * 0.55 * I * (0.4 + e)); ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, R * 0.12 + p * R * 0.86, 0, TAU); ctx.stroke();
+    }
+
+    // Partículas orbitales con perspectiva
+    ctx.globalCompositeOperation = 'lighter';
+    for (var n = 0; n < this.parts.length; n++) {
+      var pt = this.parts[n];
+      pt.a += pt.v * dt * sp * (0.3 + e * 1.4);
+      var z = Math.sin(pt.a), sc = 0.55 + 0.45 * (z * 0.5 + 0.5);
+      var x = cx + Math.cos(pt.a) * pt.r * R, y = cy + z * pt.r * R * 0.42 + pt.y * R * 0.22;
+      ctx.fillStyle = col(70, (0.25 + 0.6 * sc) * (0.3 + e) * I);
+      ctx.beginPath(); ctx.arc(x, y, pt.s * sc, 0, TAU); ctx.fill();
+    }
+
+    // Rayos de energía
+    ctx.lineWidth = 1.2;
+    for (var r = 0; r < 10; r++) {
+      var ang = t * 0.4 * sp + r * TAU / 10, len = R * (0.35 + 0.25 * Math.sin(t * 2 + r) * e + 0.2 * e);
+      var g = ctx.createLinearGradient(cx, cy, cx + Math.cos(ang) * len, cy + Math.sin(ang) * len);
+      g.addColorStop(0, col(75, 0.55 * I * (0.3 + e))); g.addColorStop(1, col(60, 0));
+      ctx.strokeStyle = g; ctx.beginPath(); ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(ang) * len, cy + Math.sin(ang) * len); ctx.stroke();
+    }
+
+    // Núcleo luminoso pulsante
+    var pulse = 1 + 0.07 * Math.sin(t * 3.2 * sp) + 0.03 * Math.sin(t * 9 * sp);
+    var cr = R * 0.17 * (0.7 + e * 0.5) * pulse;
+    var cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr * 2.6);
+    cg.addColorStop(0, 'rgba(255,255,255,' + Math.min(1, 0.9 * I) + ')');
+    cg.addColorStop(0.3, col(70, 0.85 * I)); cg.addColorStop(0.65, col(50, 0.3 * I)); cg.addColorStop(1, col(45, 0));
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(cx, cy, cr * 2.6, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  };
+
+  N.Reactor = Reactor;
+})(window.NCS = window.NCS || {});
+
+</script>
+<script>
+/* Paneles de estado, instrumentación, reloj y registro de eventos. */
+(function (N) {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var gT, gE, gS, chart, logEl;
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function hms(s) { s = Math.floor(s); return pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s / 60) % 60) + ':' + pad(s % 60); }
+  function themeColor() { return 'hsl(' + (N.hue || 190) + ',100%,60%)'; }
+
+  N.Dashboard = {
+    init: function () {
+      logEl = $('log');
+      gT = new N.Charts.Gauge($('gTemp'), 'TEMP', '', 100);
+      gE = new N.Charts.Gauge($('gEnergy'), 'ENERGY', '%', 100);
+      gS = new N.Charts.Gauge($('gStab'), 'STABILITY', '%', 100);
+      chart = new N.Charts.Line($('chart'), [themeColor, '#3dffb0', '#ffc83d'], 40);
+      var clock = $('clock');
+      var tick = function () { var d = new Date(); clock.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); };
+      tick(); setInterval(tick, 1000);
+      this.render({ status: 'OFFLINE', temp: 0, energy: 0, particles: 0, stab: 100, runtime: 0 });
+    },
+
+    // Añade una entrada al registro (más reciente arriba, máximo 80)
+    log: function (msg, type) {
+      if (!logEl) return;
+      var d = new Date(), li = document.createElement('li');
+      li.className = type || 'info';
+      var t = document.createElement('time'); t.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+      var s = document.createElement('span'); s.textContent = msg;
+      li.appendChild(t); li.appendChild(s);
+      logEl.insertBefore(li, logEl.firstChild);
+      while (logEl.children.length > 80) logEl.removeChild(logEl.lastChild);
+    },
+
+    // Actualiza todos los valores visibles
+    render: function (s) {
+      $('vStatus').textContent = s.status;
+      $('vTemp').textContent = s.temp.toFixed(1) + ' ºS';
+      $('vEnergy').textContent = s.energy.toFixed(1) + ' MSU';
+      $('vParticles').textContent = Math.round(s.particles).toLocaleString('en-US');
+      $('vStability').textContent = s.stab.toFixed(1) + ' %';
+      $('vRuntime').textContent = hms(s.runtime);
+      $('coreTag').textContent = 'CORE ' + s.status;
+      gT.set(s.temp); gE.set(s.energy / 1.2); gS.set(s.stab);
+      var load = Math.min(100, s.energy / 1.2);
+      $('bField').style.width = s.stab + '%';
+      $('bLoad').style.width = load + '%';
+      $('bLink').style.width = (s.status === 'OFFLINE' ? 0 : 92 + Math.sin(s.runtime) * 6) + '%';
+      var on = s.status !== 'OFFLINE';
+      var states = [
+        on ? (s.temp > 75 ? 'warn' : 'ok') : '', on ? (s.energy > 95 ? 'warn' : 'ok') : '',
+        on ? (s.stab < 72 ? 'warn' : 'ok') : '', on ? (s.stab < 45 ? 'crit' : 'ok') : '',
+        on ? 'ok' : '', on ? (s.stab < 45 ? 'warn' : 'ok') : ''
+      ];
+      for (var i = 0; i < 6; i++) $('l' + i).className = 'lamp ' + states[i];
+    },
+
+    pushChart: function (s) { chart.push([s.temp, Math.min(100, s.energy / 1.2), s.stab]); },
+    clearChart: function () { chart.clear(); },
+    redrawChart: function () { chart.draw(); }
+  };
+})(window.NCS = window.NCS || {});
+
+</script>
+<script>
+/* Orquestación: estado de la simulación ficticia, bucle de animación y controles. */
+(function (N) {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var HUES = { cyan: 190, blue: 215, violet: 265 };
+  var reactor, sim, last = 0, acc = 0, chartAcc = 0, theme = 'cyan';
+
+  function freshSim(keepDemo) {
+    return { mode: 'offline', temp: 0, energy: 0, particles: 0, stab: 100, runtime: 0,
+      stabTarget: 96, nextEvent: 15, recover: 0, demo: !!keepDemo, status: 'OFFLINE' };
+  }
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+  function ease(cur, tgt, dt, rate) { return cur + (tgt - cur) * Math.min(1, dt * rate); }
+
+  // Un paso de la simulación visual (datos puramente ficticios)
+  function step(dt) {
+    sim.runtime += dt;
+    var drop = 96 - sim.stab;
+    var tempT = 46 + 9 * Math.sin(sim.runtime / 7) + drop * 0.55;
+    var enT = 70 + 14 * Math.sin(sim.runtime / 5) + drop * 0.25;
+    sim.temp = Math.max(0, Math.min(100, ease(sim.temp, tempT, dt, 1.2) + rnd(-0.4, 0.4)));
+    sim.energy = Math.max(0, Math.min(120, ease(sim.energy, enT, dt, 1.2) + rnd(-0.6, 0.6)));
+    sim.stab = Math.max(0, Math.min(100, ease(sim.stab, sim.stabTarget, dt, 1.4) + rnd(-0.25, 0.25)));
+    sim.particles = sim.energy * 38 + rnd(-40, 40);
+
+    // Perturbaciones ficticias: aleatorias en modo normal, más intensas en modo demo
+    if (sim.recover > 0) { sim.recover -= dt; if (sim.recover <= 0) sim.stabTarget = 96; }
+    else {
+      sim.nextEvent -= dt;
+      if (sim.nextEvent <= 0) {
+        if (sim.demo) { sim.stabTarget = Math.random() < 0.45 ? rnd(25, 40) : rnd(52, 68); sim.nextEvent = rnd(16, 26); }
+        else { sim.stabTarget = rnd(58, 68); sim.nextEvent = rnd(30, 55); }
+        sim.recover = rnd(5, 8);
+      }
+    }
+    var key = sim.stab < 45 ? 'CRITICAL' : sim.stab < 72 ? 'WARNING' : 'NORMAL';
+    N.Alarms.set(key, key === 'NORMAL' ? 'parámetros simulados estabilizados' : 'estabilidad simulada ' + sim.stab.toFixed(0) + '%');
+    sim.status = key === 'NORMAL' ? 'ACTIVE' : key;
+  }
+
+  function refreshButtons() {
+    $('btnStart').disabled = sim.mode === 'running';
+    $('btnPause').disabled = sim.mode !== 'running';
+    $('onlineTxt').textContent = sim.mode === 'running' ? 'SIMULATION ONLINE' : sim.mode === 'paused' ? 'SIMULATION PAUSED' : 'SIMULATION IDLE';
+    applyReactorState();
+  }
+
+  function applyReactorState() {
+    var a = N.Alarms.STATES[N.Alarms.current] || N.Alarms.STATES.OFFLINE;
+    var energy = sim.mode === 'running' ? 0.3 + 0.7 * Math.min(1, sim.energy / 100) : sim.mode === 'paused' ? 0.22 : 0.06;
+    reactor.setState(energy, a.hue === null ? HUES[theme] : a.hue);
+    N.hue = HUES[theme];
+  }
+
+  function start() {
+    if (sim.mode === 'running') return;
+    var resumed = sim.mode === 'paused';
+    sim.mode = 'running'; sim.status = 'ACTIVE';
+    N.Dashboard.log(resumed ? 'Simulación reanudada' : 'Inicio de simulación', 'ok');
+    N.Audio.play('start');
+    N.Alarms.set('NORMAL', 'sistemas simulados en línea');
+    refreshButtons();
+  }
+  function pause() {
+    if (sim.mode !== 'running') return;
+    sim.mode = 'paused'; sim.status = 'STANDBY';
+    N.Dashboard.log('Simulación en pausa', 'warn');
+    N.Audio.play('stop');
+    N.Alarms.set('OFFLINE', 'simulación en pausa');
+    N.Dashboard.render(sim); refreshButtons();
+  }
+  function reset() {
+    var demo = sim.demo;
+    sim = freshSim(demo);
+    N.Dashboard.log('Reinicio de simulación', 'info');
+    N.Audio.play('stop');
+    N.Alarms.set('OFFLINE', 'sistema reiniciado');
+    N.Dashboard.clearChart(); N.Dashboard.render(sim); refreshButtons();
+  }
+  function toggleDemo() {
+    sim.demo = !sim.demo;
+    var b = $('btnDemo');
+    b.setAttribute('aria-pressed', sim.demo); b.textContent = 'MODO DEMO: ' + (sim.demo ? 'ON' : 'OFF');
+    N.Dashboard.log('Modo demostración ' + (sim.demo ? 'activado' : 'desactivado'), 'info');
+    if (sim.demo) { sim.nextEvent = 4; if (sim.mode !== 'running') start(); }
+  }
+
+  // Bucle principal: el núcleo se dibuja siempre; los datos solo avanzan al ejecutar
+  function loop(ts) {
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0.016); last = ts;
+    var speed = reactor.speed;
+    if (sim.mode === 'running') {
+      acc += dt * speed; chartAcc += dt;
+      if (acc >= 0.25) { step(acc); acc = 0; applyReactorState(); N.Dashboard.render(sim); }
+      if (chartAcc >= 0.5) { chartAcc = 0; N.Dashboard.pushChart(sim); }
+    }
+    reactor.frame(dt, ts / 1000);
+    requestAnimationFrame(loop);
+  }
+
+  function init() {
+    reactor = new N.Reactor($('core'));
+    sim = freshSim(false);
+    N.Dashboard.init();
+    N.Dashboard.log('Sistema inicializado en modo local', 'info');
+    N.Alarms.set('OFFLINE');
+    refreshButtons(); applyReactorState();
+
+    $('btnStart').addEventListener('click', start);
+    $('btnPause').addEventListener('click', pause);
+    $('btnReset').addEventListener('click', reset);
+    $('btnDemo').addEventListener('click', toggleDemo);
+
+    $('rInt').addEventListener('input', function (e) { reactor.intensity = e.target.value / 100; $('oInt').textContent = e.target.value + '%'; });
+    $('rSpd').addEventListener('input', function (e) { reactor.speed = e.target.value / 100; $('oSpd').textContent = (e.target.value / 100).toFixed(1) + 'x'; });
+
+    $('btnSettings').addEventListener('click', function () {
+      var p = $('settings'), open = p.hidden;
+      p.hidden = !open; this.setAttribute('aria-expanded', open);
+    });
+    $('btnSound').addEventListener('click', function () {
+      var on = N.Audio.toggle();
+      this.setAttribute('aria-pressed', on); this.textContent = 'SONIDO: ' + (on ? 'ON' : 'OFF');
+      N.Dashboard.log('Sonido ' + (on ? 'activado' : 'desactivado'), 'info');
+    });
+    var btns = document.querySelectorAll('[data-theme].btn');
+    Array.prototype.forEach.call(btns, function (b) {
+      b.addEventListener('click', function () {
+        theme = b.getAttribute('data-theme');
+        document.body.setAttribute('data-theme', theme);
+        Array.prototype.forEach.call(btns, function (x) { x.classList.toggle('active', x === b); });
+        applyReactorState(); N.Dashboard.redrawChart();
+        N.Dashboard.log('Modo visual: ' + b.textContent, 'info'); N.Audio.play('notify');
+      });
+    });
+
+    requestAnimationFrame(function (ts) { last = ts; loop(ts); });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})(window.NCS = window.NCS || {});
+
+</script>
+</body>
+</html>
