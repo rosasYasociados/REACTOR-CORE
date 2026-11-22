@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NUCLEAR CORE SIMULATOR</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-theme="cyan" data-alarm="off">
+
+<header class="top">
+  <div class="logo"><svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><circle cx="16" cy="16" r="4" fill="currentColor"/><circle cx="16" cy="16" r="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="1"/></svg><span>NUCLEAR CORE <small>SIMULATOR</small></span></div>
+  <div class="hud">
+    <span class="chip"><i class="lamp on"></i><span id="onlineTxt">SIMULATION ONLINE</span></span>
+    <span class="chip mono" id="clock">00:00:00</span>
+    <span class="chip">LOCAL MODE</span>
+    <button class="btn icon" id="btnSoundTop" type="button" aria-pressed="false" title="Sonido">🔇</button>
+    <button class="btn icon" id="btnSettings" aria-expanded="false" aria-controls="settings" title="Configuración">⚙</button>
+  </div>
+</header>
+
+<section id="settings" class="panel settings" hidden>
+  <h2>Settings</h2>
+  <div class="set-grid">
+    <fieldset>
+      <legend>Sonido</legend>
+      <button class="btn" id="btnSound" type="button" aria-pressed="false">SONIDO: OFF</button>
+      <button class="btn" id="btnSfx" type="button" aria-pressed="true">SOUND EFFECTS: ON</button>
+      <label class="rng">Master Volume <output id="oMaster">70%</output><input type="range" id="rMaster" min="0" max="100" value="70"></label>
+      <label class="rng">Ambient Volume <output id="oAmb">50%</output><input type="range" id="rAmb" min="0" max="100" value="50"></label>
+      <label class="rng">Alarm Volume <output id="oAlm">80%</output><input type="range" id="rAlm" min="0" max="100" value="80"></label>
+    </fieldset>
+    <fieldset>
+      <legend>Visual</legend>
+      <button class="btn" id="btnVfx" type="button" aria-pressed="true">VISUAL EFFECTS: ON</button>
+      <button class="btn" id="btnShake" type="button" aria-pressed="true">SCREEN SHAKE: ON</button>
+      <div class="themes" role="group" aria-label="Modo visual">
+        <button class="btn sm active" data-theme="cyan">CIAN</button>
+        <button class="btn sm" data-theme="blue">AZUL</button>
+        <button class="btn sm" data-theme="violet">VIOLETA</button>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Juego</legend>
+      <label class="rng">Probabilidad de apagón (cada 8 s con inestabilidad) <output id="oBlk">15%</output><input type="range" id="rBlk" min="0" max="100" value="15"></label>
+    </fieldset>
+  </div>
+</section>
+
+<aside id="alertBanner" class="alert-banner" hidden role="alert">
+  <div class="ab-icon" aria-hidden="true">⚠</div>
+  <div class="ab-main">
+    <h2 class="mono">REACTOR UNSTABLE</h2>
+    <p class="ab-sub">STABILIZE THE REACTOR!</p>
+    <dl class="ab-info">
+      <div><dt>Estado</dt><dd id="abState"></dd></div>
+      <div><dt>Causa identificada</dt><dd id="abCause"></dd></div>
+      <div><dt>Control a corregir</dt><dd id="abFix"></dd></div>
+      <div><dt>Si no se resuelve</dt><dd id="abCons"></dd></div>
+    </dl>
+  </div>
+  <button class="btn pri" id="abGo" type="button">IR AL CONTROL</button>
+</aside>
+
+<section id="failList" class="fail-list" hidden aria-label="Fallas del sistema"></section>
+
+<main class="grid">
+  <section class="panel p-reactor">
+    <h2>Reactor core</h2>
+    <div class="core-wrap"><canvas id="core" aria-label="Cámara del núcleo simulado"></canvas><div class="core-tag mono" id="coreTag">CORE OFFLINE</div></div>
+  </section>
+
+  <section class="panel p-status">
+    <h2>Estado</h2>
+    <div class="cards">
+      <div class="card c-wide"><span>Core status</span><b id="vStatus" class="mono">OFFLINE</b></div>
+      <div class="card"><span>Simulation temperature</span><b id="vTemp" class="mono">0.0 ºS</b></div>
+      <div class="card"><span>Energy output</span><b id="vEnergy" class="mono">0.0 MSU</b></div>
+      <div class="card"><span>Particle count</span><b id="vParticles" class="mono">0</b></div>
+      <div class="card"><span>System stability</span><b id="vStability" class="mono">100.0 %</b></div>
+      <div class="card c-wide"><span>Simulation runtime</span><b id="vRuntime" class="mono">00:00:00</b></div>
+    </div>
+    <div class="alarm"><i class="lamp big" id="alarmLamp"></i><div><b id="alarmText">OFFLINE</b><p id="alarmDesc">Simulación detenida.</p></div></div>
+  </section>
+
+  <section class="panel p-control">
+    <h2>Control</h2>
+    <div class="btns">
+      <button class="btn pri" id="btnStart">START</button>
+      <button class="btn" id="btnPause" disabled>PAUSE</button>
+      <button class="btn" id="btnResume" disabled>RESUME</button>
+      <button class="btn" id="btnReset">RESET</button>
+      <button class="btn" id="btnDemo" aria-pressed="false">AUTO DEMO MODE: OFF</button>
+    </div>
+    <label class="rng">Intensidad del reactor <output id="oInt">100%</output><input type="range" id="rInt" min="30" max="150" value="100"></label>
+    <label class="rng">Velocidad de animación <output id="oSpd">1.0x</output><input type="range" id="rSpd" min="50" max="300" value="100"></label>
+  </section>
+
+  <section class="panel p-instr">
+    <h2>Instrumentación</h2>
+    <div class="gauges"><div id="gTemp"></div><div id="gEnergy"></div><div id="gStab"></div></div>
+    <canvas id="chart" class="chart" aria-label="Gráfico de evolución"></canvas>
+    <div class="legend mono"><span class="k1">TEMP</span><span class="k2">ENERGY</span><span class="k3">STABILITY</span></div>
+    <div class="bars">
+      <label>Integridad de campo<span class="bar"><i id="bField"></i></span></label>
+      <label>Carga energética<span class="bar"><i id="bLoad"></i></span></label>
+      <label>Enlace de datos<span class="bar"><i id="bLink"></i></span></label>
+    </div>
+    <div class="lamps mono">
+      <span><i class="lamp" id="l0"></i>COOL</span><span><i class="lamp" id="l1"></i>FLUX</span><span><i class="lamp" id="l2"></i>GRID</span>
+      <span><i class="lamp" id="l3"></i>SHLD</span><span><i class="lamp" id="l4"></i>SYNC</span><span><i class="lamp" id="l5"></i>DATA</span>
+    </div>
+  </section>
+
+  <section class="panel p-rad" id="radPanel" data-lvl="NORMAL">
+    <h2>Radiation monitor</h2>
+    <div class="rad-top">
+      <div id="gRad"></div>
+      <div class="rad-read"><b id="vRad" class="mono">0.0</b><span>RAD-POINTS</span><span class="chip rad-chip mono" id="radState">NORMAL</span></div>
+    </div>
+    <span class="bar big"><i id="bRad"></i></span>
+    <canvas id="radChart" class="chart sm" aria-label="Historial de radiación ficticia"></canvas>
+  </section>
+
+  <section class="panel p-comps">
+    <h2>Reactor control panel</h2>
+    <p class="cp-sum mono" id="cpSummary">ONLINE 6/6 · FAULT 0</p>
+    <div class="risk"><span>RIESGO SISTÉMICO</span><span class="bar"><i id="bRisk"></i></span><b id="vRisk" class="mono">0%</b></div>
+    <div id="modules" class="modules"></div>
+  </section>
+
+  <section class="panel p-events">
+    <h2>Registro de eventos</h2>
+    <ul id="log" class="log mono" aria-live="polite"></ul>
+  </section>
+</main>
+
+<div id="flash" class="flash"></div>
+<div id="powerFail" class="powerfail" hidden role="alert"><div class="beacon"></div><h1 class="mono">POWER FAILURE</h1><p>Energía de la instalación perdida. Iniciando ELECTRICAL EMERGENCY…</p></div>
+
+<section id="sceneMini" class="scene" hidden aria-label="Electrical emergency">
+  <div class="beacon"></div>
+  <div class="mini-head">
+    <p class="scene-tag mono">ELECTRICAL EMERGENCY</p>
+    <h2 id="miniTitle" class="mono">RESTORE THE POWER</h2>
+    <p id="miniSub">Haz clic en la caja eléctrica para abrirla.</p>
+    <div id="miniCount" class="count mono" hidden>0</div>
+    <span class="bar big mini-time" id="miniTimeWrap" hidden><i id="miniTime"></i></span>
+  </div>
+  <div id="fuseBox" class="fusebox" role="button" tabindex="0" aria-label="Abrir caja eléctrica">
+    <div class="fb-inner">
+      <p class="mono fb-lab">PATRÓN OBJETIVO</p><div id="miniTarget" class="tgt"></div>
+      <p class="mono fb-lab">TUS INTERRUPTORES</p><div id="miniSwitches" class="sws"></div>
+      <div class="fb-prog mono"><span id="miniProg">0/6</span><span class="bar"><i id="miniProgBar"></i></span></div>
+    </div>
+    <div class="fb-door"><span class="fb-bolt">⚡</span><b class="mono">HIGH VOLTAGE</b><small>(panel ficticio)</small><em class="mono click-hint">HAZ CLIC PARA ABRIR</em></div>
+  </div>
+  <div id="miniMsg" class="mini-msg mono" hidden>POWER RESTORED</div>
+</section>
+
+<section id="sceneRepair" class="scene repair" hidden aria-label="Reparación del sistema">
+  <div class="beacon"></div>
+  <div class="mini-head">
+    <p class="scene-tag mono" id="rpTag">REPAIR</p>
+    <h2 id="rpTitle" class="mono"></h2>
+    <p id="rpSub"></p>
+    <div id="rpCount" class="count mono">0</div>
+    <span class="bar big mini-time"><i id="rpTime"></i></span>
+    <div id="rpResult" class="rp-result mono" hidden></div>
+  </div>
+  <div id="rpBody" class="rp-body"></div>
+  <div class="rp-foot mono"><span id="rpProg">0%</span><span class="bar"><i id="rpProgBar"></i></span></div>
+  <div class="rp-actions"><button class="btn pri" id="rpRetry" type="button" hidden>REINTENTAR REPARACIÓN</button><button class="btn" id="rpClose" type="button">VOLVER AL DASHBOARD</button></div>
+</section>
+
+<section id="sceneOver" class="scene over" hidden aria-live="assertive">
+  <div class="embers" id="embers"></div>
+  <div class="smoke"><i style="--x:2%;--d:0s"></i><i style="--x:16%;--d:1.2s"></i><i style="--x:30%;--d:2.4s"></i><i style="--x:44%;--d:.6s"></i><i style="--x:58%;--d:1.8s"></i><i style="--x:72%;--d:3s"></i><i style="--x:86%;--d:.3s"></i></div>
+  <div class="over-box">
+    <h1 class="mono">REACTOR EXPLOTÓ</h1>
+    <h2 class="mono">SYSTEM FAILURE</h2>
+    <p class="go-cause"><b>CAUSA DE LA EXPLOSIÓN:</b><br><span id="goCause"></span></p>
+    <dl class="go-stats">
+      <div><dt>Tiempo de supervivencia</dt><dd id="goTime" class="mono">00:00:00</dd></div>
+      <div><dt>Eventos ocurridos</dt><dd id="goEvents" class="mono">0</dd></div>
+      <div><dt>Emergencias</dt><dd id="goEmerg" class="mono">0</dd></div>
+    </dl>
+    <button class="btn pri" id="btnRestart" type="button">REINICIAR</button>
+  </div>
+</section>
+
+<script src="js/settings.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/alarms.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/reactor.js"></script>
+<script src="js/components.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/emergency.js"></script>
+<script src="js/minigame.js"></script>
+<script src="js/gameover.js"></script>
+<script src="js/failures.js"></script>
+<script src="js/repair.js"></script>
+<script src="js/repairgames.js"></script>
+<script src="js/repairgames2.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
